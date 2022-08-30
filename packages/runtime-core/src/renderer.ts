@@ -1315,6 +1315,7 @@ function baseCreateRenderer(
 
         toggleRecurse(instance, false)
         // beforeMount hook
+        // 调用beforeMount钩子
         if (bm) {
           invokeArrayFns(bm)
         }
@@ -1395,6 +1396,7 @@ function baseCreateRenderer(
           initialVNode.el = subTree.el
         }
         // mounted hook
+        // 调用mounted钩子
         if (m) {
           queuePostRenderEffect(m, parentSuspense)
         }
@@ -1468,6 +1470,7 @@ function baseCreateRenderer(
         }
 
         // beforeUpdate hook
+        // 调用beforeUpdate钩子
         if (bu) {
           invokeArrayFns(bu)
         }

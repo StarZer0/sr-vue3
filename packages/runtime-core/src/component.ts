@@ -162,9 +162,10 @@ export { ComponentOptions }
 
 type LifecycleHook<TFn = Function> = TFn[] | null
 
+// 定义所有生命周期对应的key
 export const enum LifecycleHooks {
   BEFORE_CREATE = 'bc',
-  CREATED = 'c',
+  CREATED = 'c', // beforeCreate和created不会在setup中执行
   BEFORE_MOUNT = 'bm',
   MOUNTED = 'm',
   BEFORE_UPDATE = 'bu',
