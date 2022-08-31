@@ -218,6 +218,7 @@ export function advancePositionWithClone(
 
 // advance by mutation without cloning (for performance reasons), since this
 // gets called a lot in the parser
+// 出于性能原因，不是按克隆的方式来步进
 export function advancePositionWithMutation(
   pos: Position,
   source: string,
@@ -226,15 +227,16 @@ export function advancePositionWithMutation(
   let linesCount = 0
   let lastNewLinePos = -1
   for (let i = 0; i < numberOfCharacters; i++) {
+    // charCodeAt(i) === 10 用来判断是否是换行
     if (source.charCodeAt(i) === 10 /* newline char code */) {
       linesCount++
       lastNewLinePos = i
     }
   }
 
-  pos.offset += numberOfCharacters
-  pos.line += linesCount
-  pos.column =
+  pos.offset += numberOfCharacters // 偏移量
+  pos.line += linesCount // 行的位置
+  pos.column = // 列的位置
     lastNewLinePos === -1
       ? pos.column + numberOfCharacters
       : numberOfCharacters - lastNewLinePos

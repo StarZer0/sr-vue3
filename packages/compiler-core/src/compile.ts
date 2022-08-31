@@ -82,6 +82,7 @@ export function baseCompile(
     onError(createCompilerError(ErrorCodes.X_SCOPE_ID_NOT_SUPPORTED))
   }
 
+  // 模板解析成AST
   const ast = isString(template) ? baseParse(template, options) : template
   const [nodeTransforms, directiveTransforms] =
     getBaseTransformPreset(prefixIdentifiers)
@@ -93,6 +94,7 @@ export function baseCompile(
     }
   }
 
+  // 处理指令等, 并添加相应的patchFlag等
   transform(
     ast,
     extend({}, options, {
@@ -109,6 +111,7 @@ export function baseCompile(
     })
   )
 
+  // 生成渲染函数
   return generate(
     ast,
     extend({}, options, {

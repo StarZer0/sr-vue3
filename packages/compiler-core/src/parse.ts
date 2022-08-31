@@ -82,11 +82,11 @@ export const defaultParserOptions: MergedParserOptions = {
 
 export const enum TextModes {
   //          | Elements | Entities | End sign              | Inside of
-  DATA, //    | ✔        | ✔        | End tags of ancestors |
-  RCDATA, //  | ✘        | ✔        | End tag of the parent | <textarea>
-  RAWTEXT, // | ✘        | ✘        | End tag of the parent | <style>,<script>
-  CDATA,
-  ATTRIBUTE_VALUE
+  DATA, //    | ✔        | ✔        | End tags of ancestors |                   元素
+  RCDATA, //  | ✘        | ✔        | End tag of the parent | <textarea>        textarea标签中的文本
+  RAWTEXT, // | ✘        | ✘        | End tag of the parent | <style>,<script>  script、style、noscript、iframe中的代码
+  CDATA, //                                                                      <![CDATA[cdata]]>代码
+  ATTRIBUTE_VALUE//                                                              标签的属性值
 }
 
 export interface ParserContext {
@@ -105,9 +105,14 @@ export function baseParse(
   content: string,
   options: ParserOptions = {}
 ): RootNode {
+  // 创建解析上下文，保留位置信息
   const context = createParserContext(content, options)
+  // 获取光标信息
   const start = getCursor(context)
+
+  // vue3支持多根节点，因此需要创建一个根节点用于记录
   return createRoot(
+    // 解析所有子节点信息
     parseChildren(context, TextModes.DATA, []),
     getSelection(context, start)
   )
@@ -131,9 +136,9 @@ function createParserContext(
     options,
     column: 1,
     line: 1,
-    offset: 0,
-    originalSource: content,
-    source: content,
+    offset: 0, // 偏移量
+    originalSource: content, // 原始内容
+    source: content, // 当前内容，随着解析会逐渐移除解析之后的内容
     inPre: false,
     inVPre: false,
     onWarn: options.onWarn
@@ -155,14 +160,14 @@ function parseChildren(
     let node: TemplateChildNode | TemplateChildNode[] | undefined = undefined
 
     if (mode === TextModes.DATA || mode === TextModes.RCDATA) {
-      if (!context.inVPre && startsWith(s, context.options.delimiters[0])) {
+      if (!context.inVPre && startsWith(s, context.options.delimiters[0])) { // 解析插值表达式
         // '{{'
         node = parseInterpolation(context, mode)
       } else if (mode === TextModes.DATA && s[0] === '<') {
         // https://html.spec.whatwg.org/multipage/parsing.html#tag-open-state
         if (s.length === 1) {
           emitError(context, ErrorCodes.EOF_BEFORE_TAG_NAME, 1)
-        } else if (s[1] === '!') {
+        } else if (s[1] === '!') {// 处理注释节点等以<!开头的节点
           // https://html.spec.whatwg.org/multipage/parsing.html#markup-declaration-open-state
           if (startsWith(s, '<!--')) {
             node = parseComment(context)
@@ -180,7 +185,7 @@ function parseChildren(
             emitError(context, ErrorCodes.INCORRECTLY_OPENED_COMMENT)
             node = parseBogusComment(context)
           }
-        } else if (s[1] === '/') {
+        } else if (s[1] === '/') {// 处理闭合标签
           // https://html.spec.whatwg.org/multipage/parsing.html#end-tag-open-state
           if (s.length === 2) {
             emitError(context, ErrorCodes.EOF_BEFORE_TAG_NAME, 2)
@@ -200,8 +205,9 @@ function parseChildren(
             )
             node = parseBogusComment(context)
           }
-        } else if (/[a-z]/i.test(s[1])) {
-          node = parseElement(context, ancestors)
+        } else if (/[a-z]/i.test(s[1])) { // 处理开始标签
+          // 解析普通元素
+          node = parseElement(context, ancestors) 
 
           // 2.x <template> with no directive compat
           if (
@@ -238,6 +244,7 @@ function parseChildren(
         }
       }
     }
+    // 解析文本
     if (!node) {
       node = parseText(context, mode)
     }
@@ -960,6 +967,7 @@ function parseAttributeValue(context: ParserContext): AttributeValue {
   return { content, isQuoted, loc: getSelection(context, start) }
 }
 
+// 处理插值表达式的解析
 function parseInterpolation(
   context: ParserContext,
   mode: TextModes
@@ -968,26 +976,36 @@ function parseInterpolation(
   __TEST__ && assert(startsWith(context.source, open))
 
   const closeIndex = context.source.indexOf(close, open.length)
+  // 找不到插值闭合的位置
   if (closeIndex === -1) {
     emitError(context, ErrorCodes.X_MISSING_INTERPOLATION_END)
     return undefined
   }
 
   const start = getCursor(context)
+  // 步进“{{”.length位置
   advanceBy(context, open.length)
   const innerStart = getCursor(context)
   const innerEnd = getCursor(context)
+  // 获取插值内容长度
   const rawContentLength = closeIndex - open.length
+  // 获取原始插值内容
   const rawContent = context.source.slice(0, rawContentLength)
+  // 获取实体转义后的插值内容
   const preTrimContent = parseTextData(context, rawContentLength, mode)
+  // 去除前后空格
   const content = preTrimContent.trim()
+  // 获取前空格偏移量
   const startOffset = preTrimContent.indexOf(content)
   if (startOffset > 0) {
+    // 步进空格的偏移量
     advancePositionWithMutation(innerStart, rawContent, startOffset)
   }
   const endOffset =
     rawContentLength - (preTrimContent.length - content.length - startOffset)
+  // 步进后空格偏移量
   advancePositionWithMutation(innerEnd, rawContent, endOffset)
+  // 步进"}}".length个位置
   advanceBy(context, close.length)
 
   return {
@@ -1048,6 +1066,7 @@ function parseTextData(
   ) {
     return rawText
   } else {
+    // 实体转义
     // DATA or RCDATA containing "&"". Entity decoding required.
     return context.options.decodeEntities(
       rawText,
@@ -1056,11 +1075,19 @@ function parseTextData(
   }
 }
 
+// 获取当前光标位置信息
 function getCursor(context: ParserContext): Position {
   const { column, line, offset } = context
   return { column, line, offset }
 }
 
+/**
+ * 获取当前选中区域信息
+ * @param context 
+ * @param start 开始位置
+ * @param end 结束位置 默认是光标位置
+ * @returns 
+ */
 function getSelection(
   context: ParserContext,
   start: Position,
@@ -1082,10 +1109,12 @@ function startsWith(source: string, searchString: string): boolean {
   return source.startsWith(searchString)
 }
 
+// 步进当前位置
 function advanceBy(context: ParserContext, numberOfCharacters: number): void {
   const { source } = context
   __TEST__ && assert(numberOfCharacters <= source.length)
   advancePositionWithMutation(context, source, numberOfCharacters)
+  // 前进指定位置
   context.source = source.slice(numberOfCharacters)
 }
 
@@ -1127,6 +1156,7 @@ function emitError(
   )
 }
 
+// 判断当前模板是否解析完成
 function isEnd(
   context: ParserContext,
   mode: TextModes,
